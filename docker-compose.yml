@@ -1,0 +1,49 @@
+# Deployment unit for Coolify (and for `docker compose up` anywhere else).
+#
+# Coolify: create a "Docker Compose" resource pointing at this repository, set
+# the domain on the `app` service, and add the environment variables below as
+# Coolify environment variables (FENIX_CLIENT_SECRET and FENIX_COOKIE_SECRET as
+# secrets). Coolify's proxy terminates TLS and forwards to port 3000.
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      # Public https origin, no trailing slash. The __Host- session cookies are
+      # Secure-only, so the app stays in "not configured" mode without https.
+      APP_ORIGIN: ${APP_ORIGIN}
+      FENIX_CLIENT_ID: ${FENIX_CLIENT_ID}
+      FENIX_CLIENT_SECRET: ${FENIX_CLIENT_SECRET}
+      # Must equal ${APP_ORIGIN}/api/fenix/callback and be registered in Fénix.
+      FENIX_REDIRECT_URI: ${FENIX_REDIRECT_URI}
+      FENIX_COOKIE_SECRET: ${FENIX_COOKIE_SECRET}
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: "3000"
+    # Not published on the host: Coolify's reverse proxy reaches the container
+    # over its own network. Uncomment `ports` to run it directly instead.
+    expose:
+      - "3000"
+    # ports:
+    #   - "3000:3000"
+    healthcheck:
+      # A dynamic route, so a passing check means the server really renders.
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:3000/api/fenix/status').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+      interval: 30s
+      timeout: 5s
+      start_period: 20s
+      retries: 3
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"

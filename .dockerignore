@@ -1,0 +1,16 @@
+.git
+.gitignore
+node_modules
+dist
+.sites-runtime
+.next
+outputs
+work
+.env
+.env.*
+!.env.example
+Dockerfile
+.dockerignore
+docker-compose.yml
+README.md
+tests
