@@ -36,6 +36,8 @@ Nada está fixado no código: o domínio vem de APP_ORIGIN e a URL de redirecion
 
 A URL exata a registar no Fénix está sempre visível na própria aplicação, em "Falta ativar a ligação ao Fénix" → "Informação para configurar", e em `GET /api/fenix/status`.
 
+Quando `configured` é `false`, o log do servidor nomeia a variável em falta ou inválida (`[fenix] Ligação ao Fénix não configurada:`). O diagnóstico fica só no log, porque `/api/fenix/status` é público e não deve descrever a instalação a quem passa.
+
 O callback exige correspondência entre o state devolvido pelo Fénix e o state selado no cookie emitido a este browser. Se a instalação do Fénix não devolver state, a operação falha de forma segura: confirmar o suporte com o administrador, nunca remover a validação. A documentação antiga não explicita esse parâmetro; este ponto faz parte do teste de integração pendente.
 
 ## Segurança e privacidade

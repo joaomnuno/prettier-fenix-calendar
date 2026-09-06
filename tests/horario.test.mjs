@@ -77,6 +77,27 @@ test("a declared redirect URI that disagrees with the origin fails closed",async
   assert.equal((await f.connect(new Request(origin+"/api/fenix/connect"))).headers.get("location"),"/?fenix_error=config");
  }finally{process.env.FENIX_REDIRECT_URI=saved;}
 });
+test("APP_ORIGIN tolerates host case and a trailing slash, rejects a path",async()=>{
+ const saved=process.env.APP_ORIGIN;
+ try{
+  for(const value of ["https://Horario.Test.Example/","https://horario.test.example"]){
+   process.env.APP_ORIGIN=value;
+   assert.equal((await (await f.status(new Request(origin+"/api/fenix/status"))).json()).callbackUrl,origin+"/api/fenix/callback");
+  }
+  for(const value of ["horario.test.example","https://horario.test.example/app","https://horario.test.example/?a=1","https://u:p@horario.test.example"]){
+   process.env.APP_ORIGIN=value;
+   assert.equal((await (await f.status(new Request(origin+"/api/fenix/status"))).json()).configured,false,value);
+  }
+ }finally{process.env.APP_ORIGIN=saved;}
+});
+test("status stays coarse: it never describes which variable is wrong",async()=>{
+ const saved=process.env.APP_ORIGIN;process.env.APP_ORIGIN="";
+ try{
+  const body=await (await f.status(new Request(origin+"/api/fenix/status"))).json();
+  assert.deepEqual(Object.keys(body).sort(),["callbackUrl","configured","connected"]);
+  assert.equal(JSON.stringify(body).includes("APP_ORIGIN"),false);
+ }finally{process.env.APP_ORIGIN=saved;}
+});
 test("an http origin is not a usable configuration for Secure __Host- cookies",async()=>{
  const saved=process.env.APP_ORIGIN;process.env.APP_ORIGIN="http://horario.test.example";
  try{

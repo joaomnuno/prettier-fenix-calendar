@@ -12,14 +12,41 @@ type Pending={state:string;exp:number};
 const noCache={"Cache-Control":"no-store, private","Pragma":"no-cache","Referrer-Policy":"no-referrer","X-Content-Type-Options":"nosniff"};
 const config=()=>process.env as Config;
 // __Host- cookies are Secure-only, so an https origin is part of being configured.
-function origin(c:Config){const raw=(c.APP_ORIGIN??"").trim().replace(/\/+$/,"");if(!raw.startsWith("https://"))return "";try{const u=new URL(raw);return u.origin===raw?raw:"";}catch{return "";}}
+// Host case and a trailing slash are normalized; a path, query, fragment or
+// credentials are rejected, because the callback is appended to this value.
+function origin(c:Config){
+  const raw=(c.APP_ORIGIN??"").trim();if(!raw)return "";
+  let u:URL;try{u=new URL(raw);}catch{return "";}
+  if(u.protocol!=="https:"||u.username||u.password||u.search||u.hash)return "";
+  return u.pathname==="/"||u.pathname===""?u.origin:"";
+}
 // The redirect URI is derived, never configured. FENIX_REDIRECT_URI is optional
 // and only asserts the derived value: set it to whatever is registered in Fénix
 // and a domain change that was not mirrored there fails closed instead of
 // sending users into a rejected authorization.
 function callbackUrl(c:Config){const o=origin(c);return o?o+CALLBACK_PATH:"";}
 function redirectMatches(c:Config){const declared=c.FENIX_REDIRECT_URI?.trim();return !declared||declared===callbackUrl(c);}
-function ready(c:Config) {return !!(callbackUrl(c)&&c.FENIX_CLIENT_ID&&c.FENIX_CLIENT_SECRET&&c.FENIX_COOKIE_SECRET&&c.FENIX_COOKIE_SECRET.length>=32&&redirectMatches(c));}
+// Names and non-secret values only. This goes to the server log, never to a
+// response: /api/fenix/status is public and must not describe the deployment.
+function problems(c:Config){
+  const out:string[]=[],raw=(c.APP_ORIGIN??"").trim();
+  if(!raw)out.push("APP_ORIGIN não está definida. Exemplo: APP_ORIGIN=https://horario.exemplo.org");
+  else if(!origin(c))out.push("APP_ORIGIN não é uma origem https válida. Recebido "+JSON.stringify(raw)+"; é preciso o esquema e nada depois do domínio, como https://horario.exemplo.org");
+  if(!c.FENIX_CLIENT_ID)out.push("FENIX_CLIENT_ID não está definida.");
+  if(!c.FENIX_CLIENT_SECRET)out.push("FENIX_CLIENT_SECRET não está definida.");
+  if(!c.FENIX_COOKIE_SECRET)out.push("FENIX_COOKIE_SECRET não está definida. Gerar com: openssl rand -base64 48");
+  else if(c.FENIX_COOKIE_SECRET.length<32)out.push("FENIX_COOKIE_SECRET tem "+c.FENIX_COOKIE_SECRET.length+" caracteres; são precisos pelo menos 32.");
+  if(origin(c)&&!redirectMatches(c))out.push("FENIX_REDIRECT_URI está definida como "+JSON.stringify(c.FENIX_REDIRECT_URI?.trim())+" mas a origem implica "+callbackUrl(c)+". Corrigir o registo no Fénix, ou deixar a variável por definir para ser derivada.");
+  return out;
+}
+let reported="";
+function ready(c:Config) {
+  const found=problems(c),key=found.join("\n");
+  // Deduplicated: every request re-checks, but the log records each distinct state once.
+  if(key&&key!==reported)console.error("[fenix] Ligação ao Fénix não configurada:\n"+found.map(p=>"  - "+p).join("\n"));
+  reported=key;
+  return found.length===0;
+}
 const json=(body:unknown,status=200)=>Response.json(body,{status,headers:noCache});
 function cookie(name:string,value:string,maxAge:number) {return name+"="+value+"; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age="+maxAge;}
 function getCookie(req:Request,name:string) {return req.headers.get("Cookie")?.split(";").map(s=>s.trim()).find(s=>s.startsWith(name+"="))?.slice(name.length+1);}
