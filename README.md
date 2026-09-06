@@ -25,14 +25,16 @@ A aplicação é autoalojada em contentor e a ligação ao Fénix é a própria 
 3. Registar exatamente a URL de callback do domínio escolhido:
    https://SEU-DOMINIO/api/fenix/callback
 4. Configurar as variáveis de ambiente de runtime, usando campos secretos para FENIX_CLIENT_SECRET e FENIX_COOKIE_SECRET:
-   - APP_ORIGIN: origem https pública, sem barra final.
+   - APP_ORIGIN: origem https pública. A barra final é tolerada.
    - FENIX_CLIENT_ID
    - FENIX_CLIENT_SECRET
-   - FENIX_REDIRECT_URI: tem de ser exatamente ${APP_ORIGIN}/api/fenix/callback.
    - FENIX_COOKIE_SECRET: valor aleatório com pelo menos 32 caracteres.
+   - FENIX_REDIRECT_URI (opcional): a URL de redirecionamento é sempre derivada de APP_ORIGIN. Definir esta variável apenas para afirmar o valor registado no Fénix — se deixar de coincidir, a aplicação declara-se não configurada em vez de enviar quem a usa para uma autorização recusada.
 5. Publicar a versão com a configuração e validar autorização, recusa, importação, expiração e logout com uma conta real.
 
-Nada está fixado no código: o domínio vem de APP_ORIGIN. Se mudar, atualizar a variável e o registo no Fénix. Se APP_ORIGIN não for https, ou se FENIX_REDIRECT_URI não corresponder ao callback derivado, a aplicação declara-se não configurada e recusa iniciar o fluxo — os cookies `__Host-` só existem sobre https.
+Nada está fixado no código: o domínio vem de APP_ORIGIN e a URL de redirecionamento é `${APP_ORIGIN}/api/fenix/callback`. Se o domínio mudar, atualizar APP_ORIGIN e o registo no Fénix. Se APP_ORIGIN não for https, a aplicação declara-se não configurada e recusa iniciar o fluxo — os cookies `__Host-` só existem sobre https.
+
+A URL exata a registar no Fénix está sempre visível na própria aplicação, em "Falta ativar a ligação ao Fénix" → "Informação para configurar", e em `GET /api/fenix/status`.
 
 O callback exige correspondência entre o state devolvido pelo Fénix e o state selado no cookie emitido a este browser. Se a instalação do Fénix não devolver state, a operação falha de forma segura: confirmar o suporte com o administrador, nunca remover a validação. A documentação antiga não explicita esse parâmetro; este ponto faz parte do teste de integração pendente.
 
@@ -70,8 +72,10 @@ No Coolify:
 
 1. Criar um recurso **Docker Compose** apontado para este repositório.
 2. Definir o domínio do serviço `app`.
-3. Adicionar as variáveis de ambiente de `.env.example`, com FENIX_CLIENT_SECRET e FENIX_COOKIE_SECRET marcadas como segredos. APP_ORIGIN tem de coincidir com o domínio definido.
+3. Adicionar as variáveis de ambiente de `.env.example`, com FENIX_CLIENT_SECRET e FENIX_COOKIE_SECRET marcadas como segredos. APP_ORIGIN tem de coincidir com o domínio definido no passo anterior.
 4. Registar `${APP_ORIGIN}/api/fenix/callback` no Fénix antes do primeiro teste de ligação.
+
+O domínio não é gerado automaticamente de propósito: tem de ser registado à mão no Fénix, por isso um domínio estável e escolhido por quem instala vale mais do que um gerado pelo Coolify.
 
 Fora do Coolify: copiar `.env.example` para `.env`, descomentar o bloco `ports` em `docker-compose.yml` e correr `docker compose up -d --build`. Sem TLS a aplicação continua a servir o editor e a exportação, mas apresenta-se como não configurada para o Fénix, por causa dos cookies `__Host-`.
 

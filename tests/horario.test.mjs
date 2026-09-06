@@ -61,6 +61,22 @@ test("OAuth callback requires the state issued to this browser",async()=>{
  const denied=await f.callback(new Request(callbackUrl,{headers:{Cookie:stateCookie}}));
  assert.ok(denied.headers.get("location").includes("fenix_error=denied"));assert.ok(denied.headers.get("set-cookie").includes("Max-Age=0"));
 });
+test("the redirect URI is derived from APP_ORIGIN and needs no variable",async()=>{
+ const saved=process.env.FENIX_REDIRECT_URI;delete process.env.FENIX_REDIRECT_URI;
+ try{
+  const body=await (await f.status(new Request(origin+"/api/fenix/status"))).json();
+  assert.equal(body.configured,true);assert.equal(body.callbackUrl,origin+"/api/fenix/callback");
+  const connect=await f.connect(new Request(origin+"/api/fenix/connect",{headers:{"Sec-Fetch-Site":"same-origin"}}));
+  assert.equal(new URL(connect.headers.get("location")).searchParams.get("redirect_uri"),origin+"/api/fenix/callback");
+ }finally{process.env.FENIX_REDIRECT_URI=saved;}
+});
+test("a declared redirect URI that disagrees with the origin fails closed",async()=>{
+ const saved=process.env.FENIX_REDIRECT_URI;process.env.FENIX_REDIRECT_URI="https://old-domain.example/api/fenix/callback";
+ try{
+  assert.equal((await (await f.status(new Request(origin+"/api/fenix/status"))).json()).configured,false);
+  assert.equal((await f.connect(new Request(origin+"/api/fenix/connect"))).headers.get("location"),"/?fenix_error=config");
+ }finally{process.env.FENIX_REDIRECT_URI=saved;}
+});
 test("an http origin is not a usable configuration for Secure __Host- cookies",async()=>{
  const saved=process.env.APP_ORIGIN;process.env.APP_ORIGIN="http://horario.test.example";
  try{

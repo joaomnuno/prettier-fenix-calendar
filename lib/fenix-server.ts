@@ -13,8 +13,13 @@ const noCache={"Cache-Control":"no-store, private","Pragma":"no-cache","Referrer
 const config=()=>process.env as Config;
 // __Host- cookies are Secure-only, so an https origin is part of being configured.
 function origin(c:Config){const raw=(c.APP_ORIGIN??"").trim().replace(/\/+$/,"");if(!raw.startsWith("https://"))return "";try{const u=new URL(raw);return u.origin===raw?raw:"";}catch{return "";}}
+// The redirect URI is derived, never configured. FENIX_REDIRECT_URI is optional
+// and only asserts the derived value: set it to whatever is registered in Fénix
+// and a domain change that was not mirrored there fails closed instead of
+// sending users into a rejected authorization.
 function callbackUrl(c:Config){const o=origin(c);return o?o+CALLBACK_PATH:"";}
-function ready(c:Config) {return !!(callbackUrl(c)&&c.FENIX_CLIENT_ID&&c.FENIX_CLIENT_SECRET&&c.FENIX_COOKIE_SECRET&&c.FENIX_COOKIE_SECRET.length>=32&&c.FENIX_REDIRECT_URI===callbackUrl(c));}
+function redirectMatches(c:Config){const declared=c.FENIX_REDIRECT_URI?.trim();return !declared||declared===callbackUrl(c);}
+function ready(c:Config) {return !!(callbackUrl(c)&&c.FENIX_CLIENT_ID&&c.FENIX_CLIENT_SECRET&&c.FENIX_COOKIE_SECRET&&c.FENIX_COOKIE_SECRET.length>=32&&redirectMatches(c));}
 const json=(body:unknown,status=200)=>Response.json(body,{status,headers:noCache});
 function cookie(name:string,value:string,maxAge:number) {return name+"="+value+"; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age="+maxAge;}
 function getCookie(req:Request,name:string) {return req.headers.get("Cookie")?.split(";").map(s=>s.trim()).find(s=>s.startsWith(name+"="))?.slice(name.length+1);}
@@ -45,7 +50,7 @@ export async function connect(req:Request){
   if(!ready(c))return redirect("/?fenix_error=config");
   const state=b64(crypto.getRandomValues(new Uint8Array(32)));
   const pending=await seal({state,exp:Date.now()+10*60000},"state",c);
-  const url=new URL(FENIX+"/oauth/userdialog");url.searchParams.set("client_id",c.FENIX_CLIENT_ID!);url.searchParams.set("redirect_uri",c.FENIX_REDIRECT_URI!);url.searchParams.set("response_type","code");url.searchParams.set("state",state);
+  const url=new URL(FENIX+"/oauth/userdialog");url.searchParams.set("client_id",c.FENIX_CLIENT_ID!);url.searchParams.set("redirect_uri",callbackUrl(c));url.searchParams.set("response_type","code");url.searchParams.set("state",state);
   return new Response(null,{status:303,headers:{...noCache,Location:url.href,"Set-Cookie":cookie(STATE_COOKIE,pending,600)}});
 }
 export async function callback(req:Request){
@@ -57,7 +62,7 @@ export async function callback(req:Request){
   if(url.searchParams.has("error"))return redirect("/?fenix_error=denied",[clear]);
   const code=url.searchParams.get("code");if(!code||code.length>4096)return redirect("/?fenix_error=exchange",[clear]);
   try{
-    const body=new URLSearchParams({client_id:c.FENIX_CLIENT_ID!,client_secret:c.FENIX_CLIENT_SECRET!,redirect_uri:c.FENIX_REDIRECT_URI!,code,grant_type:"authorization_code"});
+    const body=new URLSearchParams({client_id:c.FENIX_CLIENT_ID!,client_secret:c.FENIX_CLIENT_SECRET!,redirect_uri:callbackUrl(c),code,grant_type:"authorization_code"});
     const r=await fetch(FENIX+"/oauth/access_token",{method:"POST",headers:{"Content-Type":"application/x-www-form-urlencoded",Accept:"application/json"},body,redirect:"error",signal:AbortSignal.timeout(15000)});
     if(!r.ok)throw new Error("exchange");
     const tokens=await r.json() as {access_token?:unknown;expires_in?:unknown};

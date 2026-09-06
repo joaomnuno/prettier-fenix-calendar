@@ -17,9 +17,10 @@ services:
       APP_ORIGIN: ${APP_ORIGIN}
       FENIX_CLIENT_ID: ${FENIX_CLIENT_ID}
       FENIX_CLIENT_SECRET: ${FENIX_CLIENT_SECRET}
-      # Must equal ${APP_ORIGIN}/api/fenix/callback and be registered in Fénix.
-      FENIX_REDIRECT_URI: ${FENIX_REDIRECT_URI}
       FENIX_COOKIE_SECRET: ${FENIX_COOKIE_SECRET}
+      # Optional. The redirect URI is derived as ${APP_ORIGIN}/api/fenix/callback;
+      # set this only to assert the value registered in Fénix.
+      FENIX_REDIRECT_URI: ${FENIX_REDIRECT_URI:-}
       NODE_ENV: production
       HOST: 0.0.0.0
       PORT: "3000"
